@@ -22,8 +22,10 @@ type StreamDetail struct {
 func main() {
 	log.SetFlags(0)
 	var urls, sname string
+	var unsyncedFilter bool
 	flag.StringVar(&urls, "s", nats.DefaultURL, "The NATS server URLs (separated by comma)")
 	flag.StringVar(&sname, "stream", "", "Select a single stream")
+	flag.BoolVar(&unsyncedFilter, "unsynced", false, "Filter by streams that are out of sync")
 	flag.Parse()
 
 	nc, err := nats.Connect(urls)
@@ -84,15 +86,12 @@ func main() {
 
 	var prev string
 	for i, k := range keys {
+		var unsynced bool
 		v := strings.Split(k, "/")
 		streamName, serverName := v[0], v[1]
 		if sname != "" && streamName != sname {
 			continue
 		}
-		if i > 0 && prev != streamName {
-			fmt.Println(line)
-		}
-
 		stream := streams[streamName]
 		replica := stream[serverName]
 		status := "IN SYNC"
@@ -101,7 +100,14 @@ func main() {
 		for _, peer := range stream {
 			if peer.State.Msgs != replica.State.Msgs && peer.State.Bytes != replica.State.Bytes {
 				status = "UNSYNCED"
+				unsynced = true
 			}
+		}
+		if unsyncedFilter && !unsynced {
+			continue
+		}
+		if i > 0 && prev != streamName {
+			fmt.Println(line)
 		}
 
 		sf := make([]any, 0)
