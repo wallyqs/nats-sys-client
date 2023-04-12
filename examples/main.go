@@ -6,6 +6,7 @@ import (
 	"log"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	nsys "github.com/piotrpio/nats-sys-client/pkg/sys"
@@ -28,18 +29,22 @@ func main() {
 	flag.BoolVar(&unsyncedFilter, "unsynced", false, "Filter by streams that are out of sync")
 	flag.Parse()
 
-	nc, err := nats.Connect(urls)
+	start := time.Now()
+	nc, err := nats.Connect(urls, nats.Timeout(30*time.Second))
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("Connected in %.3fs", time.Since(start).Seconds())
 	sys := nsys.NewSysClient(nc)
 
+	start = time.Now()
 	servers, err := sys.JszPing(nsys.JszEventOptions{
 		JszOptions: nsys.JszOptions{
 			Streams:    true,
 			RaftGroups: true,
 		},
 	})
+	log.Printf("Response took %.3fs", time.Since(start).Seconds())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -102,6 +107,12 @@ func main() {
 				status = "UNSYNCED"
 				unsynced = true
 			}
+			// Cannot trust results unless coming from the stream leader.
+			// Need Stream INFO and collect multiple responses instead.
+			if peer.Cluster.Leader != replica.Cluster.Leader {
+				status = "MULTILEADER"
+				unsynced = true
+			}
 		}
 		if unsyncedFilter && !unsynced {
 			continue
@@ -119,6 +130,9 @@ func main() {
 		var suffix string
 		if serverName == replica.Cluster.Leader {
 			suffix = "*"
+		} else if replica.Cluster.Leader == "" {
+			status = "LEADERLESS"
+			unsynced = true
 		}
 		s := fmt.Sprintf("%s%s", serverName, suffix)
 		sf = append(sf, s)

@@ -103,6 +103,7 @@ func (s *System) Jsz(id string, opts JszEventOptions) (*JSZResp, error) {
 
 func (s *System) JszPing(opts JszEventOptions) ([]JSZResp, error) {
 	subj := fmt.Sprintf(srvJszSubj, "PING")
+	fmt.Println("->>>>>>>>>", subj)
 	payload, err := json.Marshal(opts)
 	if err != nil {
 		return nil, err
