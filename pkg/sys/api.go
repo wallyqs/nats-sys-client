@@ -92,8 +92,8 @@ func (s *System) RequestMany(subject string, data []byte, opts ...RequestManyOpt
 	conn := s.nc
 	reqOpts := &requestManyOpts{
 		maxWait:     DefaultRequestTimeout,
-		maxInterval: 1 * time.Second,
-		count:       -1,
+		maxInterval: 30 * time.Second,
+		count:       3,
 	}
 
 	for _, opt := range opts {
@@ -123,6 +123,7 @@ func (s *System) RequestMany(subject string, data []byte, opts ...RequestManyOpt
 			if msg.Header.Get("Status") == "503" {
 				return nil, fmt.Errorf("server request on subject %q failed: %w", subject, err)
 			}
+			fmt.Println("DATA SIZE: ", len(msg.Data))
 			res = append(res, msg)
 			if reqOpts.count != -1 && len(res) == reqOpts.count {
 				return res, nil
