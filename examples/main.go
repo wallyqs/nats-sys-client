@@ -24,15 +24,25 @@ func main() {
 	log.SetFlags(0)
 	var urls, sname string
 	var creds string
+	var timeout int
 	var unsyncedFilter bool
 	flag.StringVar(&urls, "s", nats.DefaultURL, "The NATS server URLs (separated by comma)")
 	flag.StringVar(&creds, "creds", "", "The NATS credentials")
 	flag.StringVar(&sname, "stream", "", "Select a single stream")
+	flag.IntVar(&timeout, "timeout", 30, "Connect timeout")
 	flag.BoolVar(&unsyncedFilter, "unsynced", false, "Filter by streams that are out of sync")
 	flag.Parse()
 
 	start := time.Now()
-	nc, err := nats.Connect(urls, nats.Timeout(30*time.Second), nats.UserCredentials(creds))
+
+	opts := []nats.Option{
+		nats.Timeout(time.Duration(timeout) * time.Second),
+	}
+	if creds != "" {
+		opts = append(opts, nats.UserCredentials(creds))
+	}
+
+	nc, err := nats.Connect(urls, opts...)
 	if err != nil {
 		log.Fatal(err)
 	}
