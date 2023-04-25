@@ -19,6 +19,7 @@ type ConsumerDetail struct {
 	RaftGroup            string
 	State                nats.StreamState
 	Cluster              *nats.ClusterInfo
+	StreamCluster        *nats.ClusterInfo
 	DeliveredStreamSeq   uint64
 	DeliveredConsumerSeq uint64
 	AckFloorStreamSeq    uint64
@@ -84,17 +85,26 @@ func main() {
 						m = make(map[string]*ConsumerDetail)
 						consumers[consumer.Name] = m
 					}
+					var raftGroup string
+					for _, cr := range stream.ConsumerRaftGroups {
+						if cr.Name == consumer.Name {
+							raftGroup = cr.RaftGroup
+							break
+						}
+					}
+
 					m[server.Name] = &ConsumerDetail{
 						StreamName:           consumer.Stream,
 						ConsumerName:         consumer.Name,
 						Account:              acc.Name,
-						RaftGroup:            stream.RaftGroup,
+						RaftGroup:            raftGroup,
 						State:                stream.State,
 						DeliveredStreamSeq:   consumer.Delivered.Consumer,
 						DeliveredConsumerSeq: consumer.Delivered.Consumer,
 						AckFloorStreamSeq:    consumer.AckFloor.Stream,
 						AckFloorConsumerSeq:  consumer.AckFloor.Consumer,
-						Cluster:              stream.Cluster,
+						Cluster:              consumer.Cluster,
+						StreamCluster:        stream.Cluster,
 					}
 				}
 			}
