@@ -24,6 +24,10 @@ type ConsumerDetail struct {
 	DeliveredConsumerSeq uint64
 	AckFloorStreamSeq    uint64
 	AckFloorConsumerSeq  uint64
+	NumAckPending        int
+	NumRedelivered       int
+	NumWaiting           int
+	NumPending           uint64
 }
 
 func main() {
@@ -105,6 +109,10 @@ func main() {
 						AckFloorConsumerSeq:  consumer.AckFloor.Consumer,
 						Cluster:              consumer.Cluster,
 						StreamCluster:        stream.Cluster,
+						NumAckPending:        consumer.NumAckPending,
+						NumRedelivered:       consumer.NumRedelivered,
+						NumWaiting:           consumer.NumWaiting,
+						NumPending:           consumer.NumPending,
 					}
 				}
 			}
@@ -123,8 +131,8 @@ func main() {
 	fmt.Printf("Consumers: %d\n", len(keys))
 	fmt.Println()
 
-	fields := []any{"CONSUMER", "STREAM", "RAFT", "ACCOUNT", "NODE", "DELIVERED", "ACK_FLOOR", "STATUS"}
-	fmt.Printf("%-10s %-15s %-15s %-10s %-15s | %-20s | %-20s | %-30s\n", fields...)
+	fields := []any{"CONSUMER", "STREAM", "RAFT", "ACCOUNT", "NODE", "DELIVERED", "ACK_FLOOR", "COUNTERS", "STATUS"}
+	fmt.Printf("%-10s %-15s %-15s %-10s %-15s | %-20s | %-20s | %-20s | %-30s\n", fields...)
 
 	var prev string
 	for i, k := range keys {
@@ -194,15 +202,15 @@ func main() {
 		sf = append(sf, s)
 		sf = append(sf, fmt.Sprintf("%d | %d", replica.DeliveredStreamSeq, replica.DeliveredConsumerSeq))
 		sf = append(sf, fmt.Sprintf("%d | %d", replica.AckFloorStreamSeq, replica.AckFloorConsumerSeq))
+		sf = append(sf, fmt.Sprintf("(ap:%d, nr:%d, nw:%d, np:%d)",
+			replica.NumAckPending,
+			replica.NumRedelivered,
+			replica.NumWaiting,
+			replica.NumPending,
+		))
 		sf = append(sf, fmt.Sprintf("leader: %s", replica.Cluster.Leader))
 		sf = append(sf, status)
-		// var replicasInfo string
-		// for _, r := range replica.Cluster.Replicas {
-		// 	info := fmt.Sprintf("%s(current=%-5v,offline=%v)", r.Name, r.Current, r.Offline)
-		// 	replicasInfo = fmt.Sprintf("%-40s %s", info, replicasInfo)
-		// }
-		// sf = append(sf, replicasInfo)
-		fmt.Printf("%-10s %-15s %-15s %-10s %-15s | %-20s | %-20s | %-12s | %s \n", sf...)
+		fmt.Printf("%-10s %-15s %-15s %-10s %-15s | %-20s | %-20s | %-20s | %-12s | %s \n", sf...)
 
 		prev = consumerName
 	}
