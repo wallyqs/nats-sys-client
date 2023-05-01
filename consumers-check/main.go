@@ -13,6 +13,7 @@ import (
 )
 
 type ConsumerDetail struct {
+	ServerID             string
 	StreamName           string
 	ConsumerName         string
 	Account              string
@@ -28,18 +29,23 @@ type ConsumerDetail struct {
 	NumRedelivered       int
 	NumWaiting           int
 	NumPending           uint64
+	HealthStatus         string
 }
 
 func main() {
 	log.SetFlags(0)
-	var urls, sname, cname string
-	var creds string
-	var timeout int
-	var unsyncedFilter bool
+	var (
+		urls, sname, cname string
+		creds              string
+		timeout            int
+		health             bool
+		unsyncedFilter     bool
+	)
 	flag.StringVar(&urls, "s", nats.DefaultURL, "The NATS server URLs (separated by comma)")
 	flag.StringVar(&creds, "creds", "", "The NATS credentials")
 	flag.StringVar(&sname, "stream", "", "Select a single stream")
 	flag.StringVar(&cname, "consumer", "", "Select a single consumer")
+	flag.BoolVar(&health, "health", false, "Check health from consumers")
 	flag.IntVar(&timeout, "timeout", 30, "Connect timeout")
 	flag.BoolVar(&unsyncedFilter, "unsynced", false, "Filter by streams that are out of sync")
 	flag.Parse()
@@ -98,6 +104,7 @@ func main() {
 					}
 
 					m[server.Name] = &ConsumerDetail{
+						ServerID:             server.ID,
 						StreamName:           consumer.Stream,
 						ConsumerName:         consumer.Name,
 						Account:              acc.Name,
@@ -132,7 +139,7 @@ func main() {
 	fmt.Println()
 
 	fields := []any{"CONSUMER", "STREAM", "RAFT", "ACCOUNT", "NODE", "DELIVERED", "ACK_FLOOR", "COUNTERS", "STATUS"}
-	fmt.Printf("%-10s %-15s %-15s %-10s %-15s | %-20s | %-20s | %-20s | %-30s\n", fields...)
+	fmt.Printf("%-10s %-15s %-15s %-10s %-15s | %-20s | %-20s | %-25s | %-30s\n", fields...)
 
 	var prev string
 	for i, k := range keys {
@@ -159,9 +166,18 @@ func main() {
 				statuses["UNSYNCED:ACK_FLOOR"] = true
 				unsynced = true
 			}
-			if peer.Cluster.Leader != replica.Cluster.Leader {
-				statuses["MULTILEADER"] = true
-				unsynced = true
+			if peer.Cluster == nil {
+					statuses["NO_CLUSTER"] = true
+					unsynced = true
+			} else {
+				if replica.Cluster == nil {
+					statuses["NO_CLUSTER_R"] = true
+					unsynced = true
+				}
+				if peer.Cluster.Leader != replica.Cluster.Leader {
+					statuses["MULTILEADER"] = true
+					unsynced = true
+				}
 			}
 		}
 		if replica.AckFloorStreamSeq == 0 || replica.AckFloorConsumerSeq == 0 ||
@@ -208,9 +224,30 @@ func main() {
 			replica.NumWaiting,
 			replica.NumPending,
 		))
-		sf = append(sf, fmt.Sprintf("leader: %s", replica.Cluster.Leader))
+
+
+		var replicasInfo string
+		replicasInfo = fmt.Sprintf("leader: %q", replica.Cluster.Leader)
+
+		// Include Healthz if option added.
+		var healthStatus string
+		if health {
+			hstatus, err := sys.Healthz(replica.ServerID, nsys.HealthzOptions{
+				Account:  replica.Account,
+				Stream:   replica.StreamName,
+				Consumer: replica.ConsumerName,
+			})
+			if err != nil {
+				healthStatus = err.Error()
+			} else {
+				healthStatus = fmt.Sprintf(":%s:%s", hstatus.Healthz.Status, hstatus.Healthz.Error)
+			}
+			replicasInfo = fmt.Sprintf("%s health:%q", replicasInfo, healthStatus)
+		}
+		sf = append(sf, replicasInfo)
+
 		sf = append(sf, status)
-		fmt.Printf("%-10s %-15s %-15s %-10s %-15s | %-20s | %-20s | %-20s | %-12s | %s \n", sf...)
+		fmt.Printf("%-10s %-15s %-15s %-10s %-15s | %-20s | %-20s | %-25s | %-12s | %s \n", sf...)
 
 		prev = consumerName
 	}

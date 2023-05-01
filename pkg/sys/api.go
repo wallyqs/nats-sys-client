@@ -18,7 +18,7 @@ const (
 
 var (
 	ErrValidation      = errors.New("validation error")
-	ErrInvalidServerID = errors.New("sever with given ID does not exist")
+	ErrInvalidServerID = errors.New("server with given ID does not exist")
 )
 
 // System can be used to request monitoring data from the server

@@ -23,8 +23,11 @@ type (
 
 	// HealthzOptions are options passed to Healthz
 	HealthzOptions struct {
-		JSEnabledOnly bool `json:"js-enabled-only,omitempty"`
-		JSServerOnly  bool `json:"js-server-only,omitempty"`
+		JSEnabledOnly bool   `json:"js-enabled-only,omitempty"`
+		JSServerOnly  bool   `json:"js-server-only,omitempty"`
+		Account       string `json:"account,omitempty"`
+		Stream        string `json:"stream,omitempty"`
+		Consumer      string `json:"consumer,omitempty"`
 	}
 )
 
@@ -38,7 +41,7 @@ func (hs *HealthStatus) UnmarshalJSON(data []byte) error {
 	switch string(data) {
 	case jsonString("ok"):
 		*hs = StatusOK
-	case jsonString("na"):
+	case jsonString("na"), jsonString("unavailable"):
 		*hs = StatusUnavailable
 	case jsonString("error"):
 		*hs = StatusError
@@ -75,7 +78,7 @@ func (hs HealthStatus) String() string {
 	}
 }
 
-// Healthz checks server health status
+// Healthz checks server health status.
 func (s *System) Healthz(id string, opts HealthzOptions) (*HealthzResp, error) {
 	if id == "" {
 		return nil, fmt.Errorf("%w: server id cannot be empty", ErrValidation)
@@ -93,7 +96,6 @@ func (s *System) Healthz(id string, opts HealthzOptions) (*HealthzResp, error) {
 		}
 		return nil, err
 	}
-
 	var healthzResp HealthzResp
 	if err := json.Unmarshal(resp.Data, &healthzResp); err != nil {
 		return nil, err

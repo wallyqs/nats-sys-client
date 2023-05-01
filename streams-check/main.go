@@ -13,22 +13,27 @@ import (
 )
 
 type StreamDetail struct {
-	StreamName string
-	Account    string
-	RaftGroup  string
-	State      nats.StreamState
-	Cluster    *nats.ClusterInfo
+	StreamName   string
+	Account      string
+	RaftGroup    string
+	State        nats.StreamState
+	Cluster      *nats.ClusterInfo
+	HealthStatus string
+	ServerID     string
 }
 
 func main() {
 	log.SetFlags(0)
-	var urls, sname string
-	var creds string
-	var timeout int
-	var unsyncedFilter bool
+	var (
+		urls, sname, creds string
+		timeout            int
+		unsyncedFilter     bool
+		health             bool
+	)
 	flag.StringVar(&urls, "s", nats.DefaultURL, "The NATS server URLs (separated by comma)")
 	flag.StringVar(&creds, "creds", "", "The NATS credentials")
 	flag.StringVar(&sname, "stream", "", "Select a single stream")
+	flag.BoolVar(&health, "health", false, "Check health from streams")
 	flag.IntVar(&timeout, "timeout", 30, "Connect timeout")
 	flag.BoolVar(&unsyncedFilter, "unsynced", false, "Filter by streams that are out of sync")
 	flag.Parse()
@@ -77,6 +82,7 @@ func main() {
 					streams[stream.Name] = m
 				}
 				m[server.Name] = &StreamDetail{
+					ServerID:   server.ID,
 					StreamName: stream.Name,
 					Account:    acc.Name,
 					RaftGroup:  stream.RaftGroup,
@@ -151,15 +157,30 @@ func main() {
 		sf = append(sf, replica.State.Msgs)
 		sf = append(sf, replica.State.Bytes)
 		sf = append(sf, status)
-
 		sf = append(sf, replica.Cluster.Leader)
 		var replicasInfo string
 		for _, r := range replica.Cluster.Replicas {
 			info := fmt.Sprintf("%s(current=%-5v,offline=%v)", r.Name, r.Current, r.Offline)
 			replicasInfo = fmt.Sprintf("%-40s %s", info, replicasInfo)
 		}
+
+		// Include Healthz if option added.
+		var healthStatus string
+		if health {
+			hstatus, err := sys.Healthz(replica.ServerID, nsys.HealthzOptions{
+				Account: replica.Account,
+				Stream:  replica.StreamName,
+			})
+			if err != nil {
+				healthStatus = err.Error()
+			} else {
+				healthStatus = fmt.Sprintf(":%s:%s", hstatus.Healthz.Status, hstatus.Healthz.Error)
+			}
+			replicasInfo = fmt.Sprintf("health:%q %s", healthStatus, replicasInfo)
+		}
+
 		sf = append(sf, replicasInfo)
-		fmt.Printf("%-20s %-15s %-10s %-15s %-15d %-15d| %-10s | leader: %s | peers: %s\n", sf...)
+		fmt.Printf("%-20s %-15s %-10s %-15s %-15d %-15d| %-10s | leader: %s | %s\n", sf...)
 
 		prev = streamName
 	}
