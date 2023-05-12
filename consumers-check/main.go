@@ -110,7 +110,7 @@ func main() {
 						Account:              acc.Name,
 						RaftGroup:            raftGroup,
 						State:                stream.State,
-						DeliveredStreamSeq:   consumer.Delivered.Consumer,
+						DeliveredStreamSeq:   consumer.Delivered.Stream,
 						DeliveredConsumerSeq: consumer.Delivered.Consumer,
 						AckFloorStreamSeq:    consumer.AckFloor.Stream,
 						AckFloorConsumerSeq:  consumer.AckFloor.Consumer,
